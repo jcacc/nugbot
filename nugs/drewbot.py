@@ -37,37 +37,26 @@ class Drewbot(commands.Cog):
         drew_lines = []
         with open(LOGFILE, encoding='utf-8', errors='replace') as f:
             for line in f:
-                # keep text intact even if it contains tabs
-                parts = line.split('\t', 2)
-                if len(parts) < 3:
+                text = line.rstrip('\n')
+                if not text:
                     continue
-                text = parts[2].rstrip('\n')
-                if not query:
+                if not query or query.casefold() in text.casefold():
                     drew_lines.append(text)
-                else:
-                    if query.casefold() in text.casefold():
-                        drew_lines.append(text)
         print(f"[DREWBOT] query_lines -> {len(drew_lines)} lines (query={query!r})")
         return drew_lines
-
-
 
 # With a populated list of lines, select a random line and return it. If
 # the list is empty, it is because the call to the bot was submitted
 # without a string to look for in the log, or there was no match in the
-# log for the submitted string. In that case, we can populate the list 
-# with lines of a random minimum length (which gives some variation and 
+# log for the submitted string. In that case, we can populate the list
+# with lines of a random minimum length (which gives some variation and
 # helps avoid the overrepresented relatively short lines), and select
 # one line randomly from that list.
 
     def random_line(self, drew_lines):
         if not drew_lines:
             drew_lines = self.lines_of_random_length()
-        line = choice(drew_lines)
-        parts = line.split('\t')
-        if len(parts) > 2:
-            return parts[2].strip()  # Return the chat text part
-        return line.strip()  # Fallback for malformed lines
+        return choice(drew_lines).strip()
 
 
     def lines_of_random_length(self):
