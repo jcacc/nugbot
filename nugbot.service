@@ -1,0 +1,15 @@
+[Unit]
+Description=nugbot Discord bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jca
+WorkingDirectory=/home/jca/nugbot
+ExecStart=/usr/bin/python3 nugbot.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
