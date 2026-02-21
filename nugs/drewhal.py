@@ -20,31 +20,8 @@ class Drewhal(commands.Cog):
         self._task = None
 
     async def cog_load(self):
-        if not os.path.exists(BRAINFILE):
-            print('[DREWHAL] No brain found — training from drewzer0.txt...')
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, self._train)
-            self.hal.sync()
-            print('[DREWHAL] Brain trained and saved.')
-        else:
-            print('[DREWHAL] Brain loaded.')
+        # Kick off as a background task so setup_hook isn't blocked during training
         self._task = asyncio.create_task(self._babble_loop())
-
-    def _train(self):
-        with open(LOGFILE, encoding='utf-8', errors='replace') as f:
-            lines = [l.strip() for l in f if l.strip()]
-        total = len(lines)
-        skipped = 0
-        for i, line in enumerate(lines):
-            try:
-                self.hal.learn(line)
-            except Exception:
-                skipped += 1
-                continue
-            pct = int((i + 1) / total * 100)
-            if pct % 10 == 0 and int(i / total * 100) != pct:
-                print(f'[DREWHAL] Training: {pct}%')
-        print(f'[DREWHAL] Training complete. Skipped {skipped} bad lines.')
 
     def cog_unload(self):
         if self._task:
@@ -53,6 +30,14 @@ class Drewhal(commands.Cog):
 
     async def _babble_loop(self):
         await self.bot.wait_until_ready()
+        if not os.path.exists(BRAINFILE):
+            print('[DREWHAL] No brain found — training from drewzer0.txt...')
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._train)
+            self.hal.sync()
+            print('[DREWHAL] Brain trained and saved.')
+        else:
+            print('[DREWHAL] Brain loaded.')
         while not self.bot.is_closed():
             delay = random.randint(MIN_DELAY, MAX_DELAY)
             print(f'[DREWHAL] Next babble in {delay // 60}m')
@@ -69,6 +54,22 @@ class Drewhal(commands.Cog):
             if reply:
                 print(f'[DREWHAL] Babbling: {reply!r}')
                 await channel.send(reply)
+
+    def _train(self):
+        with open(LOGFILE, encoding='utf-8', errors='replace') as f:
+            lines = [l.strip() for l in f if l.strip()]
+        total = len(lines)
+        skipped = 0
+        for i, line in enumerate(lines):
+            try:
+                self.hal.learn(line)
+            except Exception:
+                skipped += 1
+                continue
+            pct = int((i + 1) / total * 100)
+            if pct % 10 == 0 and int(i / total * 100) != pct:
+                print(f'[DREWHAL] Training: {pct}%')
+        print(f'[DREWHAL] Training complete. Skipped {skipped} bad lines.')
 
 
 async def setup(bot):
