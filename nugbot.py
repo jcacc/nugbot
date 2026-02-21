@@ -10,7 +10,9 @@ def load_config(config_file = 'config.yaml'):
 
 CONFIG = load_config()
 
-bot = commands.Bot(command_prefix='.')
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='.', intents=intents)
 
 # Add nugs you want to load to this list. There should be a file in the
 # /nugs/ subdir that matches the name, e.g. /nugs/google.py is loaded
@@ -24,13 +26,13 @@ nugs = [
 async def on_ready():
     print('[BOT] 𝔫𝔲𝔤𝔟𝔬𝔱') 
     print(f'[BOT] logged in as \"{bot.user}\"')
-    load_nugs(nugs)
+    await load_nugs(nugs)
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="you 👀"))
 
-def load_nugs(nuglist):
+async def load_nugs(nuglist):
     for nug in nuglist:
         try:
-            bot.load_extension(f'nugs.{nug}')
+            await bot.load_extension(f'nugs.{nug}')
             print(f'[BOT] nug loaded successfully: {nug}')
         except:
             print(f'[BOT] nug \"{nug}\" failed to load')

@@ -49,5 +49,5 @@ class Lastfm(commands.Cog):
 
         return f'♫ **{track_name}** by **{artist_name}** on **{album_name}**'
 
-def setup(bot):
-    bot.add_cog(Lastfm(bot))
+async def setup(bot):
+    await bot.add_cog(Lastfm(bot))
