@@ -10,33 +10,32 @@ def load_config(config_file = 'config.yaml'):
 
 CONFIG = load_config()
 
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix='.', intents=intents)
-
-# Add nugs you want to load to this list. There should be a file in the
-# /nugs/ subdir that matches the name, e.g. /nugs/google.py is loaded
-# by adding 'google' to the nugs list.
-
 nugs = [
     'drewbot',
     'google',
-    'vampire'
+    'vampire',
+    'weather'
 ]
+
+intents = discord.Intents.default()
+intents.messages = True
+intents.message_content = True
+
+class Nugbot(commands.Bot):
+    async def setup_hook(self):
+        for nug in nugs:
+            try:
+                await self.load_extension(f'nugs.{nug}')
+                print(f'[BOT] nug loaded successfully: {nug}')
+            except Exception as e:
+                print(f'[BOT] nug "{nug}" failed to load: {e}')
+
+bot = Nugbot(command_prefix='.', intents=intents)
 
 @bot.event
 async def on_ready():
-    print('[BOT] 𝔫𝔲𝔤𝔟𝔬𝔱') 
-    print(f'[BOT] logged in as \"{bot.user}\"')
-    await load_nugs(nugs)
+    print('[BOT] 𝔫𝔲𝔤𝔟𝔬𝔱')
+    print(f'[BOT] logged in as "{bot.user}"')
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="you 👀"))
-
-async def load_nugs(nuglist):
-    for nug in nuglist:
-        try:
-            await bot.load_extension(f'nugs.{nug}')
-            print(f'[BOT] nug loaded successfully: {nug}')
-        except:
-            print(f'[BOT] nug \"{nug}\" failed to load')
 
 bot.run(CONFIG['bot_token'])
