@@ -77,5 +77,5 @@ class Drewbot(commands.Cog):
         line = line.split('\t')[2].removesuffix('\n')
         return line
 
-def setup(bot):
-    bot.add_cog(Drewbot(bot))
+async def setup(bot):
+    await bot.add_cog(Drewbot(bot))
