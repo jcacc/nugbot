@@ -25,3 +25,13 @@ Added `nugs/drewhal.py` — a MegaHAL Markov chain cog that trains on `drewzer0.
 - Fixed megahal's `boundary()` `IndexError` (crashes on lines ending with apostrophe) by wrapping each `learn()` call in a try/except and skipping bad lines (4 skipped total)
 - Fixed encoding by reading drewzer0.txt with `utf-8/errors='replace'` instead of relying on megahal's file open
 - Added `-u` flag to systemd service (`python3 -u`) to enable unbuffered stdout in journald
+
+## 2026-02-21 — Add drewstats cog
+
+Added `nugs/drewstats.py` — reads drewzer0.txt and posts a Discord embed with stats: total lines, total words, average line length, top 10 words (stopwords filtered), and the longest line. Command: `.drewstats`.
+
+## 2026-02-21 — Add fm cog (Last.fm); moved to sharebro
+
+Added `nugs/fm.py` with Last.fm integration: `.setfm <username>`, `.fm [member]` (now playing / last played), `.recent [member]` (last 5 tracks), `.topartists [member] [period]`. User registrations stored in `fm_users.json`.
+
+Decided to deploy fm on sharebro instead of nugbot — better fit for that server. Removed fm from nugbot's nug list; deployed to `/home/jca/dev/python/sharebro/cogs/fm.py` on lampPost.
