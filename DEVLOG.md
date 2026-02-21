@@ -11,3 +11,5 @@ Upgraded from discord.py 1.7.1 (unmaintained) to 2.x.
 - Simplified `requirements.txt` to direct deps only, dropped pinned transitive packages
 
 **Deployed** to lampPost via scp, service restarted on reboot. All nugs loaded clean.
+
+**Repo:** Deleted standalone `jcacc/nugbot`, re-established as a proper fork of `mulcare/nugbot`. Opened PR #1 with the 2.x migration.
