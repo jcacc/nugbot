@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from discord.ext import commands
 import aiohttp
@@ -171,6 +172,83 @@ class FM(commands.Cog):
         period_label = next((k for k, v in PERIODS.items() if v == period), period)
         embed = discord.Embed(
             title=f'Top artists ({period_label}) — {lfm}',
+            description='\n'.join(lines),
+            color=0xD51007
+        )
+        await ctx.send(embed=embed)
+
+
+    @commands.command(aliases=['wk'])
+    async def whoknows(self, ctx, *, artist: str = None):
+        # If no artist given, use the invoking user's current/last played artist
+        if not artist:
+            lfm = self._get_lfm(ctx.author)
+            if not lfm:
+                await ctx.send('Provide an artist name, or set your Last.fm with `.setfm <username>`.')
+                return
+            async with aiohttp.ClientSession() as session:
+                async with session.get(LASTFM_API, params={
+                    'method': 'user.getrecenttracks',
+                    'user': lfm,
+                    'api_key': self.api_key,
+                    'format': 'json',
+                    'limit': 1
+                }) as resp:
+                    data = await resp.json()
+            tracks = data.get('recenttracks', {}).get('track', [])
+            if not tracks:
+                await ctx.send('Could not get current artist. Provide an artist name.')
+                return
+            track = tracks[0] if isinstance(tracks, list) else tracks
+            artist = track['artist']['#text']
+
+        # Find registered users who are members of this guild
+        registered = []
+        for uid, lfm in self.users.items():
+            member = ctx.guild.get_member(int(uid))
+            if member:
+                registered.append((member, lfm))
+
+        if not registered:
+            await ctx.send('No registered Last.fm users in this server.')
+            return
+
+        async def fetch_plays(session, member, lfm):
+            try:
+                async with session.get(LASTFM_API, params={
+                    'method': 'user.getartistinfo',
+                    'user': lfm,
+                    'artist': artist,
+                    'api_key': self.api_key,
+                    'format': 'json',
+                    'autocorrect': 1
+                }) as resp:
+                    data = await resp.json()
+                plays = int(data.get('artist', {}).get('stats', {}).get('userplaycount', 0))
+                return (member.display_name, plays)
+            except Exception:
+                return None
+
+        async with ctx.typing():
+            async with aiohttp.ClientSession() as session:
+                tasks = [fetch_plays(session, m, lfm) for m, lfm in registered]
+                raw = await asyncio.gather(*tasks)
+
+        results = sorted(
+            [r for r in raw if r and r[1] > 0],
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        if not results:
+            await ctx.send(f'Nobody in this server has listened to **{artist}**.')
+            return
+
+        lines = [f'`{i+1}.` **{name}** — {plays:,} plays'
+                 for i, (name, plays) in enumerate(results)]
+
+        embed = discord.Embed(
+            title=f'Who knows {artist}?',
             description='\n'.join(lines),
             color=0xD51007
         )
