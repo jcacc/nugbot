@@ -2,7 +2,7 @@
 
 A Discord bot for the homies. Runs on a Raspberry Pi.
 
-Built by [@jcacc](https://github.com/jcacc) and [@mulcare](https://github.com/mulcare).
+Built by [@mulcare](https://github.com/mulcare) and [@jcacc](https://github.com/jcacc).
 
 ## Commands
 
