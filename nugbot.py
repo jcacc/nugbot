@@ -14,7 +14,7 @@ nugs = [
     'drewbot',
     'google',
     'vampire',
-    'fixembed',
+    # 'fixembed',
     # 'weather'
 ]
 
