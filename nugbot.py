@@ -14,7 +14,7 @@ nugs = [
     'drewbot',
     'google',
     'vampire',
-    'weather'
+    # 'weather'
 ]
 
 intents = discord.Intents.default()
