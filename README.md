@@ -39,6 +39,17 @@ sudo systemctl enable nugbot
 sudo systemctl start nugbot
 ```
 
+## Version history
+
+### 2026-02-20
+- Migrated to discord.py 2.x
+- Added `Intents` with `message_content` privilege
+- All cog `setup()` functions and `load_nugs()` made async
+
+### 2023–2024
+- Initial build: drewbot, gis, vampire nugs
+- Deployed to Raspberry Pi (lampPost) as a systemd service
+
 ## Structure
 
 ```
