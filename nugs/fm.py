@@ -94,6 +94,22 @@ class FM(commands.Cog):
         con.close()
         return rows
 
+    async def _guild_registered(self, guild):
+        """
+        Return list of (Member, lastfm_username) for all registered users in a guild.
+        Uses cache first, falls back to fetch_member() for uncached members.
+        """
+        result = []
+        for uid, lfm in self._all_users():
+            member = guild.get_member(int(uid))
+            if not member:
+                try:
+                    member = await guild.fetch_member(int(uid))
+                except Exception:
+                    continue
+            result.append((member, lfm))
+        return result
+
     # ------------------------------------------------------------------ #
     #  API helpers                                                         #
     # ------------------------------------------------------------------ #
@@ -638,11 +654,7 @@ class FM(commands.Cog):
                 return
             artist = t['artist']['#text']
 
-        registered = [
-            (ctx.guild.get_member(int(uid)), lfm)
-            for uid, lfm in self._all_users()
-            if ctx.guild.get_member(int(uid))
-        ]
+        registered = await self._guild_registered(ctx.guild)
         if not registered:
             await ctx.send('No registered Last.fm users in this server.')
             return
@@ -993,11 +1005,7 @@ class FM(commands.Cog):
     # ------------------------------------------------------------------ #
     async def _server_aggregate(self, ctx, method, key, subkey, title):
         """Shared logic for serverartists / serveralbums / servertracks."""
-        registered = [
-            (ctx.guild.get_member(int(uid)), lfm)
-            for uid, lfm in self._all_users()
-            if ctx.guild.get_member(int(uid))
-        ]
+        registered = await self._guild_registered(ctx.guild)
         if not registered:
             await ctx.send('No registered Last.fm users in this server.')
             return
