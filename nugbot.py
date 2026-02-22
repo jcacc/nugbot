@@ -16,7 +16,8 @@ nugs = [
     'vampire',
     'drewhal',
     'drewstats',
-    'fm'
+    'fm',
+    'sysinfo'
 ]
 
 intents = discord.Intents.default()
