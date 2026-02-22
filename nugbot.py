@@ -33,6 +33,8 @@ class Nugbot(commands.Bot):
                 print(f'[BOT] nug loaded successfully: {nug}')
             except Exception as e:
                 print(f'[BOT] nug "{nug}" failed to load: {e}')
+        await self.tree.sync()
+        print('[BOT] slash commands synced')
 
 bot = Nugbot(command_prefix='.', intents=intents)
 
