@@ -8,7 +8,6 @@ YDL_OPTS = {
     'quiet': True,
     'skip_download': True,
     'extract_flat': True,
-    'default_search': 'ytsearch5',
     'no_warnings': True,
 }
 
@@ -16,7 +15,7 @@ YDL_OPTS = {
 def _search(query):
     """Blocking yt-dlp search — run in executor."""
     with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
-        info = ydl.extract_info(query, download=False)
+        info = ydl.extract_info(f'ytsearch5:{query}', download=False)
     return info.get('entries', [])
 
 
