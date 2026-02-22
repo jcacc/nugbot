@@ -857,7 +857,7 @@ class FM(commands.Cog):
                 'method': 'user.gettopartists',
                 'user': lfm,
                 'period': lfm_period,
-                'limit': 50
+                'limit': 1000
             })
             artists = data.get('topartists', {}).get('artist', [])
             return {a['name'].lower(): (a['name'], int(a['playcount'])) for a in artists}
