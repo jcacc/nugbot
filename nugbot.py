@@ -15,7 +15,8 @@ nugs = [
     'google',
     'vampire',
     'drewhal',
-    'drewstats'
+    'drewstats',
+    'fm'
 ]
 
 intents = discord.Intents.default()
