@@ -17,7 +17,8 @@ nugs = [
     'drewhal',
     'drewstats',
     'fm',
-    'sysinfo'
+    'sysinfo',
+    'youtube'
 ]
 
 intents = discord.Intents.default()
