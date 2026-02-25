@@ -16,7 +16,6 @@ nugs = [
     'vampire',
     'drewhal',
     'drewstats',
-    'fm',
     'sysinfo',
     'youtube'
 ]
