@@ -1,5 +1,7 @@
 import asyncio
+import datetime
 import sqlite3
+import time
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -36,6 +38,28 @@ def _init_db(db_path):
     con.execute(
         'CREATE TABLE IF NOT EXISTS users '
         '(discord_id TEXT PRIMARY KEY, lastfm_username TEXT NOT NULL)'
+    )
+    con.execute(
+        'CREATE TABLE IF NOT EXISTS scrobbles ('
+        '  lfm_username  TEXT    NOT NULL,'
+        '  artist        TEXT    NOT NULL,'
+        '  track         TEXT    NOT NULL,'
+        '  album         TEXT    NOT NULL DEFAULT "",'
+        '  scrobbled_at  INTEGER NOT NULL,'
+        '  PRIMARY KEY (lfm_username, scrobbled_at, artist, track)'
+        ')'
+    )
+    con.execute(
+        'CREATE INDEX IF NOT EXISTS idx_scrobbles_user_artist '
+        'ON scrobbles (lfm_username, LOWER(artist))'
+    )
+    con.execute(
+        'CREATE TABLE IF NOT EXISTS scrobble_sync ('
+        '  lfm_username   TEXT    PRIMARY KEY,'
+        '  last_synced_ts INTEGER NOT NULL DEFAULT 0,'
+        '  total_cached   INTEGER NOT NULL DEFAULT 0,'
+        '  synced_at      INTEGER NOT NULL DEFAULT 0'
+        ')'
     )
     con.commit()
     if os.path.exists(USERS_FILE):
@@ -100,6 +124,63 @@ class FM(commands.Cog):
             result.append((member, lfm))
         return result
 
+    def _get_sync_state(self, lfm):
+        con = sqlite3.connect(DB_PATH)
+        row = con.execute(
+            'SELECT last_synced_ts, total_cached, synced_at FROM scrobble_sync WHERE lfm_username = ?',
+            (lfm,)
+        ).fetchone()
+        con.close()
+        return row
+
+    def _update_sync_state(self, lfm, last_synced_ts, total_cached):
+        con = sqlite3.connect(DB_PATH)
+        con.execute(
+            'INSERT OR REPLACE INTO scrobble_sync (lfm_username, last_synced_ts, total_cached, synced_at) '
+            'VALUES (?, ?, ?, ?)',
+            (lfm, last_synced_ts, total_cached, int(time.time()))
+        )
+        con.commit()
+        con.close()
+
+    def _insert_scrobbles(self, lfm, rows):
+        con = sqlite3.connect(DB_PATH)
+        con.executemany(
+            'INSERT OR IGNORE INTO scrobbles (lfm_username, artist, track, album, scrobbled_at) '
+            'VALUES (?, ?, ?, ?, ?)',
+            [(lfm, r[0], r[1], r[2], r[3]) for r in rows]
+        )
+        con.commit()
+        con.close()
+
+    def _query_first_scrobble(self, lfm, artist_lower):
+        con = sqlite3.connect(DB_PATH)
+        row = con.execute(
+            'SELECT artist, track, album, scrobbled_at FROM scrobbles '
+            'WHERE lfm_username = ? AND LOWER(artist) = ? AND scrobbled_at >= 1000000000 ORDER BY scrobbled_at ASC LIMIT 1',
+            (lfm, artist_lower)
+        ).fetchone()
+        con.close()
+        return row
+
+    def _count_scrobbles_for_artist(self, lfm, artist_lower):
+        con = sqlite3.connect(DB_PATH)
+        row = con.execute(
+            'SELECT COUNT(*) FROM scrobbles WHERE lfm_username = ? AND LOWER(artist) = ?',
+            (lfm, artist_lower)
+        ).fetchone()
+        con.close()
+        return row[0] if row else 0
+
+    def _count_cached_scrobbles(self, lfm):
+        con = sqlite3.connect(DB_PATH)
+        row = con.execute(
+            'SELECT COUNT(*) FROM scrobbles WHERE lfm_username = ?',
+            (lfm,)
+        ).fetchone()
+        con.close()
+        return row[0] if row else 0
+
     # ------------------------------------------------------------------ #
     #  API helpers                                                         #
     # ------------------------------------------------------------------ #
@@ -119,6 +200,125 @@ class FM(commands.Cog):
         if not tracks:
             return None
         return tracks[0] if isinstance(tracks, list) else tracks
+
+    async def _resolve_artist(self, session, query):
+        """Return the canonical Last.fm artist name.
+        Prefers an exact (case-insensitive) name match; falls back to the
+        result with the most listeners for partial/variant queries."""
+        data = await self._api(session, {
+            'method': 'artist.search',
+            'artist': query,
+            'limit': 5
+        })
+        matches = data.get('results', {}).get('artistmatches', {}).get('artist', [])
+        if not matches:
+            return query
+        query_lower = query.strip().lower()
+        exact = next((m for m in matches if m['name'].strip().lower() == query_lower), None)
+        if exact:
+            return exact['name']
+        best = max(matches, key=lambda m: int(m.get('listeners', 0) or 0))
+        return best['name']
+
+    async def _sync_scrobbles(self, session, lfm, status_callback=None):
+        """Bulk-sync a user's scrobble history into the local DB.
+        Returns (fetched_this_run, total_cached).
+        """
+        sync_state = self._get_sync_state(lfm)
+        is_first_sync = sync_state is None
+        from_ts = 0 if is_first_sync else sync_state[0] + 1
+
+        params = {
+            'method': 'user.getRecentTracks',
+            'user': lfm,
+            'limit': 200,
+            'page': 1,
+            'extended': 0,
+        }
+        if from_ts:
+            params['from'] = from_ts
+
+        try:
+            p1 = await self._api(session, params)
+        except Exception:
+            return (0, self._count_cached_scrobbles(lfm))
+
+        attr = p1.get('recenttracks', {}).get('@attr', {})
+        total_pages = int(attr.get('totalPages', 1))
+        total = int(attr.get('total', 0))
+        if total == 0:
+            now_ts = int(time.time())
+            cached = self._count_cached_scrobbles(lfm)
+            self._update_sync_state(lfm, now_ts, cached)
+            return (0, cached)
+
+        def parse_page(data):
+            tracks = data.get('recenttracks', {}).get('track', [])
+            if isinstance(tracks, dict):
+                tracks = [tracks]
+            rows = []
+            for t in tracks:
+                if t.get('@attr', {}).get('nowplaying') == 'true':
+                    continue
+                uts = t.get('date', {}).get('uts')
+                if not uts or int(uts) < 1000000000:
+                    continue
+                artist = t.get('artist', {}).get('#text', '') or ''
+                track  = t.get('name', '') or ''
+                album  = t.get('album', {}).get('#text', '') or ''
+                rows.append((artist, track, album, int(uts)))
+            return rows
+
+        rows1 = parse_page(p1)
+        if rows1:
+            self._insert_scrobbles(lfm, rows1)
+        fetched = len(rows1)
+
+        if total_pages > 1:
+            sem = asyncio.Semaphore(5)
+            batch_size = 5
+            pages = list(range(2, total_pages + 1))
+            batch_num = 0
+
+            for i in range(0, len(pages), batch_size):
+                batch = pages[i:i + batch_size]
+
+                async def fetch_page(pg):
+                    p = dict(params)
+                    p['page'] = pg
+                    async with sem:
+                        try:
+                            return await self._api(session, p)
+                        except Exception:
+                            return {}
+
+                results = await asyncio.gather(*[fetch_page(pg) for pg in batch])
+                for data in results:
+                    rows = parse_page(data)
+                    if rows:
+                        self._insert_scrobbles(lfm, rows)
+                        fetched += len(rows)
+
+                batch_num += 1
+                if status_callback and batch_num % 4 == 0:
+                    pages_done = min(i + batch_size + 1, total_pages)
+                    await status_callback(pages_done, total_pages, fetched)
+
+                if i + batch_size < len(pages):
+                    await asyncio.sleep(1.0)
+
+        con = sqlite3.connect(DB_PATH)
+        max_ts_row = con.execute(
+            'SELECT MAX(scrobbled_at) FROM scrobbles WHERE lfm_username = ?', (lfm,)
+        ).fetchone()
+        total_cached = con.execute(
+            'SELECT COUNT(*) FROM scrobbles WHERE lfm_username = ?', (lfm,)
+        ).fetchone()[0]
+        con.close()
+
+        last_synced_ts = max_ts_row[0] if max_ts_row and max_ts_row[0] else int(time.time())
+        self._update_sync_state(lfm, last_synced_ts, total_cached)
+        return (fetched, total_cached)
 
     def _no_lfm_msg(self):
         return 'No Last.fm username set. Use `.setfm <username>`.'
@@ -966,6 +1166,85 @@ class FM(commands.Cog):
         if album_name:
             embed.add_field(name='Album', value=f'**{album_name}** × {album_streak}', inline=True)
         embed.add_field(name='Track', value=f'**{track_name}** × {track_streak}', inline=True)
+        await ctx.send(embed=embed)
+
+    @commands.hybrid_command(aliases=['dd', 'firstlisten'])
+    @app_commands.describe(artist='Artist name (leave blank for current track\'s artist)')
+    async def discoverydate(self, ctx, *, artist: str = None):
+        """When did you first listen to an artist? (uses local scrobble cache)"""
+        lfm = self._get_lfm(ctx.author)
+        if not lfm:
+            await ctx.send(self._no_lfm_msg())
+            return
+
+        async with aiohttp.ClientSession() as session:
+            if not artist:
+                t = await self._current_track(session, lfm)
+                if not t:
+                    await ctx.send('No recent track found. Provide an artist name.')
+                    return
+                artist = t['artist']['#text']
+            else:
+                artist = await self._resolve_artist(session, artist)
+
+            sync_state = self._get_sync_state(lfm)
+            now_ts = int(time.time())
+            need_sync = (
+                sync_state is None or
+                (now_ts - sync_state[2]) > 3600
+            )
+
+            if need_sync:
+                sync_type = 'full' if sync_state is None else 'delta'
+                status_msg = await ctx.send(
+                    f'Syncing scrobble history for **{lfm}** ({sync_type})… this may take a while.'
+                )
+                last_edit = [0.0]
+
+                async def progress_callback(pages_done, total_pages, fetched):
+                    if time.time() - last_edit[0] >= 3.0:
+                        last_edit[0] = time.time()
+                        pct = int(pages_done / total_pages * 100)
+                        try:
+                            await status_msg.edit(
+                                content=f'Syncing **{lfm}**… {pct}% ({pages_done}/{total_pages} pages, {fetched:,} tracks)'
+                            )
+                        except Exception:
+                            pass
+
+                fetched, total_cached = await self._sync_scrobbles(session, lfm, progress_callback)
+                try:
+                    await status_msg.edit(
+                        content=f'Sync complete — {fetched:,} new scrobbles fetched ({total_cached:,} total cached).'
+                    )
+                except Exception:
+                    pass
+
+        result = self._query_first_scrobble(lfm, artist.lower())
+        if not result:
+            await ctx.send(f'No scrobbles found for **{artist}** in cache for `{lfm}`.')
+            return
+
+        r_artist, r_track, r_album, r_ts = result
+        artist_plays = self._count_scrobbles_for_artist(lfm, artist.lower())
+        sync_state = self._get_sync_state(lfm)
+        total_cached = sync_state[1] if sync_state else self._count_cached_scrobbles(lfm)
+        synced_at = sync_state[2] if sync_state else 0
+
+        dt = datetime.datetime.utcfromtimestamp(r_ts)
+        date_fmt = dt.strftime('%-d %B %Y, %H:%M UTC')
+        disc_ts = f'<t:{r_ts}:D>'
+
+        embed = discord.Embed(title=f'Discovery date — {r_artist}', color=0xD51007)
+        embed.set_author(name=lfm)
+        embed.add_field(name='First listened', value=f'{disc_ts}\n{date_fmt}', inline=False)
+        first_track_val = f'**{r_track}**'
+        if r_album:
+            first_track_val += f' on *{r_album}*'
+        embed.add_field(name='First track', value=first_track_val, inline=False)
+        embed.add_field(name='Total plays in cache', value=f'{artist_plays:,}', inline=True)
+        synced_str = datetime.datetime.utcfromtimestamp(synced_at).strftime('%-d %b %Y %H:%M UTC') if synced_at else 'never'
+        embed.set_footer(text=f'Cache last updated {synced_str} · {total_cached:,} scrobbles cached')
         await ctx.send(embed=embed)
 
     # ------------------------------------------------------------------ #
