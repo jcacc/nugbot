@@ -12,8 +12,9 @@ import os
 import yaml
 
 LASTFM_API = 'https://ws.audioscrobbler.com/2.0/'
-USERS_FILE = '/home/jca/nugbot/nugs/fm_users.json'
-DB_PATH    = '/home/jca/nugbot/nugs/fm.db'
+NUGS_DIR   = os.path.dirname(os.path.abspath(__file__))
+USERS_FILE = os.path.join(NUGS_DIR, 'fm_users.json')
+DB_PATH    = os.path.join(NUGS_DIR, 'fm.db')
 
 PERIODS = {
     'week':   '7day',

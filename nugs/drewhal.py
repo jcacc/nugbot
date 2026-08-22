@@ -5,8 +5,9 @@ import random
 import asyncio
 import os
 
-LOGFILE = '/home/jca/nugbot/nugs/drewzer0.txt'
-BRAINFILE = '/home/jca/nugbot/nugs/drewhal.brain'
+NUGS_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGFILE = os.path.join(NUGS_DIR, 'drewzer0.txt')
+BRAINFILE = os.path.join(NUGS_DIR, 'drewhal.brain')
 CHANNEL_ID = 177113512177303552
 
 MIN_DELAY = 1 * 60    # 1 minute

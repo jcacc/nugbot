@@ -2,8 +2,9 @@ import discord
 from discord.ext import commands
 from random import choice, randint
 import linecache
+import os
 
-LOGFILE = '/home/jca/nugbot/nugs/drewzer0.txt'
+LOGFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'drewzer0.txt')
 
 class Drewbot(commands.Cog):
     def __init__(self, bot):

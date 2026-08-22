@@ -2,12 +2,19 @@ import discord
 from discord.ext import commands
 import psutil
 import datetime
+import socket
+
+
+OWNER_ID = 260481053913907200
 
 
 class SysInfo(commands.Cog):
     @commands.hybrid_command(aliases=['top'])
     async def sysinfo(self, ctx):
         """Show a snapshot of system resource usage."""
+        if ctx.author.id != OWNER_ID:
+            await ctx.send('nope', ephemeral=True)
+            return
         cpu = psutil.cpu_percent(interval=1)
         mem = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
@@ -25,7 +32,7 @@ class SysInfo(commands.Cog):
             for p in procs
         ]
 
-        embed = discord.Embed(title='🖥 System info — lampPost', color=0x2ecc71)
+        embed = discord.Embed(title=f'🖥 System info — {socket.gethostname()}', color=0x2ecc71)
         embed.add_field(name='CPU', value=f'{cpu:.1f}%', inline=True)
         embed.add_field(
             name='Memory',

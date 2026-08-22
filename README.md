@@ -1,6 +1,6 @@
 # nugbot
 
-A Discord bot for the homies. Runs on a Raspberry Pi.
+A Discord bot for the homies. Runs on `CHOMPYVIII` (Windows) as an NSSM service; previously ran on a Raspberry Pi via systemd.
 
 Built by [@mulcare](https://github.com/mulcare) and [@jcacc](https://github.com/jcacc).
 
@@ -32,7 +32,16 @@ lastfm:
 
 ## Running as a service
 
-A systemd service file is included. To install:
+**Windows (current)**: registered as an [NSSM](https://nssm.cc/) service named `nugbot` — auto-starts, restarts on failure, logs to `nugbot.log`/`nugbot.err.log` in the working directory.
+
+```powershell
+nssm install nugbot "C:\Program Files\Python312\python.exe" "-u nugbot.py"
+nssm set nugbot AppDirectory "C:\nugbot"
+nssm set nugbot Start SERVICE_AUTO_START
+nssm start nugbot
+```
+
+**Linux (legacy)**: a systemd service file is included.
 
 ```bash
 sudo cp nugbot.service /etc/systemd/system/
@@ -42,6 +51,12 @@ sudo systemctl start nugbot
 ```
 
 ## Version history
+
+### 2026-08-21
+- Ported from lampPost (Raspberry Pi) to CHOMPYVIII (Windows), now runs as an NSSM service
+- Fixed hardcoded `/home/jca/...` paths across several cogs so the bot runs from any install location
+- Fixed a Windows-only `UnicodeEncodeError` crash in `on_ready`
+- `requirements.txt` now lists all actual runtime deps (previously several were only ever `pip install`ed by hand)
 
 ### 2026-02-20
 - Migrated to discord.py 2.x

@@ -1,8 +1,11 @@
 # cogs/vampire.py
 
 import discord
+import os
 import random
 from discord.ext import commands
+
+VAMPIRE_FLOW_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vampire_flow.txt')
 
 class Vampire(commands.Cog):
     def __init__(self, bot):
@@ -11,7 +14,7 @@ class Vampire(commands.Cog):
     @commands.command(name='vampire', help='vampire flow')
     async def vampire(self, ctx, word: str = None):
         try:
-            with open('/home/jca/nugbot/nugs/vampire_flow.txt', 'r') as file:
+            with open(VAMPIRE_FLOW_FILE, 'r') as file:
                 lines = file.readlines()
 
                 # Filter the lines if a word is provided

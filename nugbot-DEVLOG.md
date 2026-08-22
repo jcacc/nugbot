@@ -61,3 +61,23 @@ Converted all cog commands to `@commands.hybrid_command()` — work as both pref
 Added `nugs/fm.py` with Last.fm integration: `.setfm <username>`, `.fm [member]` (now playing / last played), `.recent [member]` (last 5 tracks), `.topartists [member] [period]`. User registrations stored in `fm_users.json`.
 
 Decided to deploy fm on sharebro instead of nugbot — better fit for that server. Removed fm from nugbot's nug list; deployed to `/home/jca/dev/python/sharebro/cogs/fm.py` on lampPost.
+
+## 2026-08-21 — Port from lampPost (Pi) to CHOMPYVIII (Windows), NSSM service
+
+lampPost (Raspberry Pi) was underpowered; moved the bot to `CHOMPYVIII`, a Windows 11 desktop (i7-11700K, 64GB RAM) already reachable via WinRM.
+
+**Portability fixes** (all six were hardcoded to `/home/jca/nugbot/nugs/...`, breaking on any other host/path):
+- `drewbot.py`, `drewstats.py`, `drewhal.py` — `LOGFILE`/`BRAINFILE` now derived from `os.path.dirname(os.path.abspath(__file__))`
+- `vampire.py` — `vampire_flow.txt` path likewise
+- `fm.py`, `year.py` — `USERS_FILE`/`DB_PATH` likewise (both cogs point at the same `fm.db`, kept in sync)
+- `sysinfo.py`, `speedtest.py` — swapped the hardcoded `lampPost` string in embed titles for `socket.gethostname()`
+
+**Windows-specific bug**: `on_ready`'s `print()` of the stylized bot name (`𝔫𝔲𝔤𝔟𝔬𝔱`, non-BMP Unicode) crashed with `UnicodeEncodeError` under Windows' default `cp1252` console/file encoding — silently swallowed by discord.py's "Ignoring exception in on_ready", so `change_presence` never ran. Fixed in `nugbot.py` with `sys.stdout.reconfigure(encoding='utf-8')` / `sys.stderr.reconfigure(encoding='utf-8')` at import time. No-op on Linux (already UTF-8).
+
+**`requirements.txt` was stale** — `psutil`, `speedtest-cli`, `megahal`, `yt-dlp`, and `anthropic` had all been `pip install`ed by hand on lampPost over time (for `sysinfo`, `speedtest`, `drewhal`, `youtube`, `misquote` respectively) and were never recorded. Added all five. Confirmed no compiled-extension risk: `megahal` and its `python-Levenshtein` dep both ship as pure-Python (`py3-none-any`) wheels, so no MSVC build step needed on Windows.
+
+**Deploy mechanics**: Python 3.12 and NSSM 2.24 installed on CHOMPYVIII via WinRM (`Invoke-WebRequest` + silent installers — no winget available in a non-interactive WinRM session). Files pushed over an SMB mount of `C$` to `C:\nugbot` (source + `config.yaml` + data files, including the ~110MB `fm.db` Last.fm cache — carried over rather than left to rebuild from scratch). Registered as an NSSM service (`C:\nssm\nssm.exe install nugbot ...`) — `SERVICE_AUTO_START`, restart-on-exit, stdout/stderr logged to `nugbot.log`/`nugbot.err.log` with rotation at 10MB. This replaces the systemd unit for this deployment; `nugbot.service` is left in the repo for anyone still deploying to Linux.
+
+**Cutover**: stopped + disabled lampPost's systemd service before starting the Windows one (same bot token — running both would double every response). lampPost's unit is untouched otherwise, so rollback is just `systemctl enable --now nugbot` there and `nssm stop nugbot` on CHOMPYVIII.
+
+**Verified**: all 9 nugs load clean (`drewbot`, `google`, `vampire`, `drewhal`, `drewstats`, `sysinfo`, `speedtest`, `youtube`, `misquote`), slash commands synced, gateway connects, `on_ready` completes without error.

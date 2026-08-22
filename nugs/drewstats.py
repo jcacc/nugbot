@@ -2,8 +2,9 @@ import discord
 from discord.ext import commands
 from collections import Counter
 import re
+import os
 
-LOGFILE = '/home/jca/nugbot/nugs/drewzer0.txt'
+LOGFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'drewzer0.txt')
 
 STOPWORDS = {
     'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',

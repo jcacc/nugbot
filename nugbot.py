@@ -1,7 +1,14 @@
+import sys
+
 import discord
 from discord.ext import commands
 import requests
 import yaml
+
+# Console encoding on Windows defaults to the system codepage (e.g. cp1252),
+# which can't print the non-BMP characters used below or in some nug output.
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
 
 def load_config(config_file = 'config.yaml'):
     with open(config_file) as file:
@@ -16,9 +23,11 @@ nugs = [
     'vampire',
     'drewhal',
     'drewstats',
-    'fm',
+    # 'fm',
     'sysinfo',
-    'youtube'
+    'speedtest',
+    'youtube',
+    'misquote'
 ]
 
 intents = discord.Intents.default()
