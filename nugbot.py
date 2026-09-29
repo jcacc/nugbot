@@ -27,7 +27,8 @@ nugs = [
     'sysinfo',
     'speedtest',
     'youtube',
-    'misquote'
+    'misquote',
+    'ai'
 ]
 
 intents = discord.Intents.default()
